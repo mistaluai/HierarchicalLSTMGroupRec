@@ -21,7 +21,7 @@ class DataFetcher:
         Full path to the extracted contents.
     """
 
-    def __init__(self, output_dir='data', filename=None, file_id=None):
+    def __init__(self, output_dir='data'):
         """
         Initializes the DataFetcher with output directory, filename, and Google Drive file ID.
 
@@ -35,37 +35,33 @@ class DataFetcher:
             The Google Drive file ID of the ZIP file.
         """
         self.output_dir = output_dir
-        self.filename = filename
-        self.file_id = file_id
-        self.zip_path = os.path.join(self.output_dir, filename)
-        self.extract_path = os.path.join(self.output_dir, self.filename.replace(".zip", ""))
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def __download(self):
+    def __download(self, file_id, zip_path):
         """
         Downloads the ZIP file from Google Drive using gdown.
         """
-        url = f"https://drive.google.com/uc?id={self.file_id}"
-        gdown.download(url, self.zip_path, quiet=False)
+        url = f"https://drive.google.com/uc?id={file_id}"
+        gdown.download(url, zip_path, quiet=False)
 
-    def __extract(self):
+    def __extract(self, zip_path, extract_path):
         """
         Extracts the downloaded ZIP file to the specified directory.
         """
-        os.makedirs(self.extract_path, exist_ok=True)
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            zip_ref.extractall(self.extract_path)
-        print(f"Extracted to {self.extract_path}")
+        os.makedirs(extract_path, exist_ok=True)
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+        print(f"Extracted to {extract_path}")
 
-    def __cleanup(self):
+    def __cleanup(self, zip_path):
         """
         Deletes the ZIP file after extraction.
         """
-        if os.path.exists(self.zip_path):
-            os.remove(self.zip_path)
-            print(f"Deleted ZIP file: {self.zip_path}")
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+            print(f"Deleted ZIP file: {zip_path}")
 
-    def __download_and_extract(self):
+    def __download_and_extract(self, filename, file_id):
         """
         Downloads and extracts the specified ZIP file.
         Returns:
@@ -73,12 +69,15 @@ class DataFetcher:
         str
             Path to the extracted directory.
         """
-        self.__download()
-        self.__extract()
-        self.__cleanup()
-        return self.extract_path
+        zip_file = os.path.join(self.output_dir, filename)
+        extract_path = os.path.join(self.output_dir, filename.replace(".zip", ""))
 
-    def fetch_data(self):
+        self.__download(file_id, zip_file)
+        self.__extract(zip_file, extract_path)
+        self.__cleanup(zip_file)
+        return extract_path
+
+    def fetch_data(self, files):
         """
         Public method to initiate the download and extraction process.
 
@@ -87,4 +86,8 @@ class DataFetcher:
         str
             Path to the extracted directory.
         """
-        return self.__download_and_extract()
+        files_path = []
+        for filename, file_id in files.items():
+            files_path.append(self.__download_and_extract(filename, file_id))
+
+        return files_path
