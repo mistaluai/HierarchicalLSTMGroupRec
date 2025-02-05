@@ -14,6 +14,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
+
+##### This fuckin shit isn't working on kaggle, don't try otherwise boom
+
+
 class b1_ModelTrainer:
     def __init__(self, model, optimizer,lr, criterion, epochs, datasets, batch_size, device, is_tpu=False, save_path='/kaggle/working/model.pt'):
         self.is_tpu = is_tpu
