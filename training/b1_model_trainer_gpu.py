@@ -1,22 +1,24 @@
-from tqdm import tqdm
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torchvision
-from tqdm import tqdm
-
 class b1_ModelTrainer:
-    def __init__(self, model, optimizer, criterion, epochs, dataloaders, device):
+    def __init__(self, model, optimizer, criterion, epochs, dataloaders, device, save_folder, is_continue=False, checkpoint=None):
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
         self.epochs = epochs
         self.dataloaders = dataloaders
         self.DEVICE = device
+        self.save_folder = save_folder
+        self.is_continue = is_continue
+        self.checkpoint = checkpoint
 
     def train_model(self):
         model, optimizer, criterion, epochs, dataloaders = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders
-        for epoch in range(epochs):
+
+        epoch = 0
+        loss = 0
+        if self.is_continue:
+            epoch, model, optimizer, loss = self.__load_checkpoint(model, optimizer, self.checkpoint)
+
+        for training_epoch in range(epoch, epochs):
             ## change model mode depending on the phase
             for phase in ['train', 'val']:
                 dataloader = dataloaders[phase]
@@ -24,11 +26,12 @@ class b1_ModelTrainer:
                 if phase == 'train':
                     model.train()
                     for inputs, labels in tqdm(dataloader, desc=phase):
-                        inputs, labels = inputs.to(self.DEVICE), labels.to(self.DEVICE)
+                        inputs = inputs.to(self.DEVICE)
+                        labels = labels.to(self.DEVICE)
                         # zero grads of he optim
                         optimizer.zero_grad()
                         # freeze the non-learnable weights
-                        self.__handle_transfer_learning(phase, epoch // epochs)
+                        self.__handle_transfer_learning(phase, training_epoch / epochs)
                         # forward pass
                         logit = model(inputs)
                         loss = criterion(logit, labels)
@@ -42,7 +45,10 @@ class b1_ModelTrainer:
                         continue
                     model.eval()
                     self.__eval_model(dataloader)
-                print(f"Epoch {epoch + 1}/{epochs}, {phase} Loss: {epoch_loss / len(dataloader)}")  # Print loss
+            self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), epoch_loss)
+            print(f"Epoch {training_epoch + 1}/{epochs}, {phase} Loss: {epoch_loss / len(dataloader)}")  # Print loss
+
+        self.__save_model()
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0.8):
         if phase == "train":
@@ -60,5 +66,52 @@ class b1_ModelTrainer:
         elif phase == "val":
             for param in self.model.parameters():
                 param.requires_grad = False
+
     def __eval_model(self, dataloader):
-        raise NotImplementedError('Not implemented yet')
+        model = self.model
+        criterion = self.criterion
+        model.eval()
+        val_loss = 0
+        correct_preds = 0
+        total_preds = 0
+
+        with torch.no_grad():
+            for inputs, labels in tqdm(dataloader, desc="Evaluating"):
+                inputs = inputs.to(self.DEVICE)
+                labels = labels.to(self.DEVICE)
+                # forward pass
+                logits = model(inputs)
+                loss = criterion(logits, labels)
+                val_loss += loss.item()  # Accumulate loss
+
+                # Compute accuracy
+                _, predicted = torch.max(logits, 1)
+                correct_preds += (predicted == labels).sum().item()
+                total_preds += labels.size(0)
+
+        # Calculate average loss and accuracy
+        avg_loss = val_loss / len(dataloader)
+        accuracy = correct_preds / total_preds
+        return avg_loss, accuracy
+
+    def __save_model(self):
+        torch.save(self.model.state_dict(), self.save_folder + "/b1_model.pth")
+
+    def __save_checkpoint(self, epoch, model_state_dict, optimizer_state_dict, loss):
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model_state_dict,
+            'optimizer_state_dict': optimizer_state_dict,
+            'loss': loss,
+        }
+        torch.save(checkpoint, self.save_folder + f'checkpoint-epoch{epoch}-loss{loss}.pth')
+
+    def __load_checkpoint(self, model, optimizer, checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        epoch = checkpoint['epoch']
+        model_state_dict = checkpoint['model_state_dict']
+        optimizer_state_dict = checkpoint['optimizer_state_dict']
+        loss = checkpoint['loss']
+        model = model.load_state_dict(model_state_dict)
+        optimizer = optimizer.load_state_dict(optimizer_state_dict)
+        return epoch, model, optimizer, loss

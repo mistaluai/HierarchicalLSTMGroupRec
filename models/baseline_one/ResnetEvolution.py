@@ -1,12 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch_xla
-import torch_xla.core.xla_model as xm
 import torchvision
 from tqdm import tqdm
 
-## criterion, optim, lr, GPU/TPU
 class ResnetEvolution(nn.Module):
     def __init__(self, hidden_layers=[128, 64, 32]):
         super(ResnetEvolution, self).__init__()

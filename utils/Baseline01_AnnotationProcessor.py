@@ -2,6 +2,7 @@ import os
 import glob
 import pandas as pd
 
+
 class AnnotationProcessor:
     def __init__(self, base_path, output_path='/kaggle/working/', filename='dataset.csv'):
         self.base_path = base_path
@@ -17,6 +18,11 @@ class AnnotationProcessor:
 
         df = pd.DataFrame(data, columns=['FrameID', 'Label'])
         df['video_names'] = folder_name
+
+        label_mapping = {'l-spike': 0, 'l_set': 1, 'r_set': 2, 'r-pass': 3, 'r_spike': 4, 'l-pass': 5, 'r_winpoint': 6,
+                         'l_winpoint': 7}
+        df['Mapped_Label'] = df['Label'].map(label_mapping)
+
         # Ensure the output directory exists
         os.makedirs(self.output_path, exist_ok=True)
         # Save the file directly in the root of the output path

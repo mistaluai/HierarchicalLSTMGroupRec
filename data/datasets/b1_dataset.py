@@ -19,8 +19,11 @@ class B1Dataset(Dataset):
     def __init__(self, csv_file, split='train', transform=None):
         self.data = pd.read_csv(csv_file)
         if transform is None:
-            self.transform = v2.Compose([
-            v2.ToTensor()
+            self.transform = transforms.Compose([
+                transforms.Resize((256, 256)),
+                transforms.CenterCrop((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])
         else:
             self.transform = transform
@@ -35,7 +38,7 @@ class B1Dataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.data.iloc[idx]['img_path']
-        label = self.data.iloc[idx]['Label']
+        label = self.data.iloc[idx]['Mapped_Label']
 
         # Load image
         image = Image.open(img_path).convert("RGB")
@@ -44,4 +47,4 @@ class B1Dataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        return image, label
+        return image, torch.tensor(label)
