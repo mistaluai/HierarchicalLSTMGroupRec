@@ -9,6 +9,7 @@ class ResnetEvolution(nn.Module):
         super(ResnetEvolution, self).__init__()
         self.hidden_layers = hidden_layers
         self.model = self.__init_backbone(torchvision.models.resnet50(pretrained=True))
+        self.fc = self.model.fc
 
     def __init_backbone(self, backbone):
         num_features = backbone.fc.in_features
