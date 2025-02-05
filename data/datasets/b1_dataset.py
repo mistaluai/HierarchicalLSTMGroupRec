@@ -1,13 +1,3 @@
-import torch
-import pandas as pd
-import torch
-from torch.utils.data import Dataset
-from torchvision import transforms
-from PIL import Image
-import os
-from torchvision.transforms import v2
-
-
 class B1Dataset(Dataset):
 
     VIDEO_SPLITS = {
@@ -46,5 +36,4 @@ class B1Dataset(Dataset):
         # Apply transformations if provided
         if self.transform:
             image = self.transform(image)
-
-        return image, torch.tensor(label)
+        return image, torch.tensor(label, dtype=torch.long)
