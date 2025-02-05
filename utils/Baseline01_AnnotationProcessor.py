@@ -18,11 +18,10 @@ class AnnotationProcessor:
 
         df = pd.DataFrame(data, columns=['FrameID', 'Label'])
         df['video_names'] = folder_name
-
-        label_mapping = {'l-spike': 0, 'l_set': 1, 'r_set': 2, 'r-pass': 3, 'r_spike': 4, 'l-pass': 5, 'r_winpoint': 6,
-                         'l_winpoint': 7}
-        df['Mapped_Label'] = df['Label'].map(label_mapping)
-
+## ['l-spike', 'l_set', 'r_set', 'r-pass', 'r_spike', 'l-pass',
+       #'r_winpoint', 'l_winpoint']
+        label_mapping = {'l-spike': 0, 'l_set': 1, 'r_set': 2, 'r-pass': 3, 'r_spike': 4, 'l-pass': 5, 'r_winpoint': 6, 'l_winpoint': 7}
+        df['Mapped_Label'] = df['Label'].map(label_mapping).astype('int64')
         # Ensure the output directory exists
         os.makedirs(self.output_path, exist_ok=True)
         # Save the file directly in the root of the output path
@@ -40,6 +39,9 @@ class AnnotationProcessor:
         """Combine all CSV files into a single DataFrame."""
         csv_files = glob.glob(os.path.join(self.output_path, '*.csv'))
         data = [pd.read_csv(csv_file) for csv_file in csv_files]
+        for d in data:
+            d.dropna(inplace=True)
+            # print(d.isna().sum())
         return pd.concat(data, ignore_index=True)
 
     def generate_img_paths(self, df):
@@ -75,3 +77,4 @@ class AnnotationProcessor:
         self.save_combined_data(data_with_paths)
         self.cleanup()  # Clean up intermediate files
         self.data = pd.read_csv(os.path.join(self.output_path, self.filename))
+
