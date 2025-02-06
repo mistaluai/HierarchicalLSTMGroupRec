@@ -1,5 +1,6 @@
 class b1_ModelTrainer:
-    def __init__(self, model, optimizer, scheduled, criterion, epochs, dataloaders, device, save_folder, is_continue=False, checkpoint=None):
+    def __init__(self, model, optimizer, scheduled, criterion, epochs, dataloaders, device, save_folder,
+                 is_continue=False, checkpoint=None):
         self.model = model
         self.optimizer = optimizer
         self.scheduled = scheduled
@@ -11,9 +12,9 @@ class b1_ModelTrainer:
         self.is_continue = is_continue
         self.checkpoint = checkpoint
 
-    #verbose 1 : checkpoint,
-    #verbose 3:  labels, preds
-    #verbose 4: logits
+    # verbose 1 : checkpoint,
+    # verbose 3:  labels, preds
+    # verbose 4: logits
     def train_model(self, verbose=0):
         model, optimizer, criterion, epochs, dataloaders = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders
 
@@ -25,22 +26,24 @@ class b1_ModelTrainer:
 
         if self.is_continue:
 
-            if verbose>0:
+            if verbose > 0:
                 print(f"Continuing from checkpoint {self.checkpoint}")
 
             epoch, model, optimizer = self.__load_checkpoint(model, optimizer, self.checkpoint, verbose)
 
         for training_epoch in range(epoch, epochs):
 
-            # print(f"\nTraining epoch {training_epoch}: training {'full model' if self.__check_transfer_learning(training_epoch/epochs) else 'only fc model'}")
+            print(f"\nTraining epoch {training_epoch+1}")
 
             ## change model mode depending on the phase
             for phase in ['train', 'val']:
                 dataloader = dataloaders[phase]
                 epoch_loss = 0  # Track total loss for the epoch
                 if phase == 'train':
+                    if verbose > 0:
+                        dataloader = tqdm(dataloader, desc=phase)
                     model.train()
-                    for inputs, labels in tqdm(dataloader, desc=phase):
+                    for inputs, labels in dataloader:
 
                         inputs = inputs.to(self.DEVICE)
                         labels = labels.to(self.DEVICE)
@@ -77,15 +80,20 @@ class b1_ModelTrainer:
                     loss, acc = self.__eval_model(dataloader, verbose)
                     val_losses.append(loss)
                     val_accuracies.append(acc)
-                    print(f"Epoch {training_epoch + 1}/{epochs}, ({phase}) Loss: {loss} | Accuracy: {acc}")  # Print loss
+                    print(
+                        f"Epoch {training_epoch + 1}/{epochs}, ({phase}) Loss: {loss} | Accuracy: {acc}")  # Print loss
 
             if self.scheduled:
                 optimizer.scheduler_step()
-                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(), optimizer.scheduler_state_dict(), verbose)
+                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
+                                       optimizer.scheduler_state_dict(), verbose)
             else:
                 self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), verbose)
 
-        self.__save_model(verbose)
+            if training_epoch % 10 == 0:
+                self.__save_model(training_epoch, verbose)
+
+        self.__save_model('final_', verbose)
         return train_losses, val_losses, val_accuracies
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0, verbose=0):
@@ -115,9 +123,10 @@ class b1_ModelTrainer:
         val_loss = 0
         correct_preds = 0
         total_preds = 0
-
+        if verbose > 0:
+            dataloader = tqdm(dataloader, desc="Validation")
         with torch.no_grad():
-            for inputs, labels in tqdm(dataloader, desc="Evaluating"):
+            for inputs, labels in dataloader:
                 inputs = inputs.to(self.DEVICE)
                 labels = labels.to(self.DEVICE)
 
@@ -153,8 +162,8 @@ class b1_ModelTrainer:
         accuracy = correct_preds / total_preds
         return avg_loss, accuracy
 
-    def __save_model(self, verbose=0):
-        torch.save(self.model.state_dict(), self.save_folder + "/b1_model.pth")
+    def __save_model(self, training_epoch, verbose=0):
+        torch.save(self.model.state_dict(), self.save_folder + f"/{training_epoch}b1_model.pth")
         if verbose > 0:
             print(f"Saved model to {self.save_folder}/b1_model.pth")
 
