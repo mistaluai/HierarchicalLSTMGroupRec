@@ -39,7 +39,7 @@ class b1_ModelTrainer:
                         inputs = inputs.to(self.DEVICE)
                         labels = labels.to(self.DEVICE)
 
-                        if verbose > 2:
+                        if verbose > 3:
                             print(f"labels: {labels}")
 
                         # zero grads of he optim
