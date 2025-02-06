@@ -18,7 +18,7 @@ class b1_ModelTrainer:
             epoch, model, optimizer = self.__load_checkpoint(model, optimizer, self.checkpoint)
 
         for training_epoch in range(epoch, epochs):
-            print(f"Training epoch {training_epoch}: training {'full model' if self.__check_transfer_learning(training_epoch/epochs) else 'only fc model'}")
+            print(f"\nTraining epoch {training_epoch}: training {'full model' if self.__check_transfer_learning(training_epoch/epochs) else 'only fc model'}")
             ## change model mode depending on the phase
             for phase in ['train', 'val']:
                 dataloader = dataloaders[phase]
@@ -65,7 +65,7 @@ class b1_ModelTrainer:
                 for param in self.model.parameters():
                     param.requires_grad = False
                 # Unfreeze the classification layer
-                for param in self.model.fc.parameters():
+                for param in self.model.get_fc().parameters():
                     param.requires_grad = True
         elif phase == "val":
             for param in self.model.parameters():
@@ -73,7 +73,6 @@ class b1_ModelTrainer:
 
     def __check_transfer_learning(self, ratio_epochs, tl_coeff=0.8):
         return ratio_epochs >= tl_coeff
-
 
     def __eval_model(self, dataloader):
         model = self.model
@@ -87,13 +86,15 @@ class b1_ModelTrainer:
             for inputs, labels in tqdm(dataloader, desc="Evaluating"):
                 inputs = inputs.to(self.DEVICE)
                 labels = labels.to(self.DEVICE)
-                # forward pass
+
+                # Forward pass
                 logits = model(inputs)
+                probs = F.softmax(logits, dim=1)  # Apply softmax to get probabilities
                 loss = criterion(logits, labels)
                 val_loss += loss.item()  # Accumulate loss
 
                 # Compute accuracy
-                _, predicted = torch.max(logits, 1)
+                predicted = torch.argmax(probs, dim=1)  # Get the class with the highest probability
                 correct_preds += (predicted == labels).sum().item()
                 total_preds += labels.size(0)
 
