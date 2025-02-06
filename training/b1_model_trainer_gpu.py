@@ -54,7 +54,7 @@ class b1_ModelTrainer:
 
         self.__save_model()
 
-    def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0.8):
+    def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0):
         if phase == "train":
             if self.__check_transfer_learning(ratio_epochs, tl_coeff):
                 # Unfreeze all layers for fine-tuning
@@ -71,7 +71,7 @@ class b1_ModelTrainer:
             for param in self.model.parameters():
                 param.requires_grad = False
 
-    def __check_transfer_learning(self, ratio_epochs, tl_coeff=0.8):
+    def __check_transfer_learning(self, ratio_epochs, tl_coeff=0):
         return ratio_epochs >= tl_coeff
 
     def __eval_model(self, dataloader):
