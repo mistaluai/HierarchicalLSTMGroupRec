@@ -18,6 +18,11 @@ class b1_ModelTrainer:
         model, optimizer, criterion, epochs, dataloaders = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders
 
         epoch = 0
+
+        train_losses = []
+        val_losses = []
+        val_accuracies = []
+
         if self.is_continue:
 
             if verbose>0:
@@ -60,6 +65,8 @@ class b1_ModelTrainer:
                         # update weights
                         optimizer.step()
                         epoch_loss += loss.item()  # Accumulate loss
+
+                    train_losses.append(epoch_loss)
                     print(
                         f"Epoch {training_epoch + 1}/{epochs}, {phase} Loss: {epoch_loss / len(dataloader)}")  # Print loss
                 else:
@@ -68,6 +75,8 @@ class b1_ModelTrainer:
                         continue
                     model.eval()
                     loss, acc = self.__eval_model(dataloader, verbose)
+                    val_losses.append(loss)
+                    val_accuracies.append(acc)
                     print(f"Epoch {training_epoch + 1}/{epochs}, ({phase}) Loss: {loss} | Accuracy: {acc}")  # Print loss
 
             if self.scheduled:
@@ -77,6 +86,7 @@ class b1_ModelTrainer:
                 self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), verbose)
 
         self.__save_model(verbose)
+        return train_losses, val_losses, val_accuracies
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0, verbose=0):
         if phase == "train":
