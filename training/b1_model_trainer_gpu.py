@@ -1,7 +1,8 @@
 class b1_ModelTrainer:
-    def __init__(self, model, optimizer, criterion, epochs, dataloaders, device, save_folder, is_continue=False, checkpoint=None):
+    def __init__(self, model, optimizer, scheduled, criterion, epochs, dataloaders, device, save_folder, is_continue=False, checkpoint=None):
         self.model = model
         self.optimizer = optimizer
+        self.scheduled = scheduled
         self.criterion = criterion
         self.epochs = epochs
         self.dataloaders = dataloaders
@@ -69,8 +70,11 @@ class b1_ModelTrainer:
                     loss, acc = self.__eval_model(dataloader, verbose)
                     print(f"Epoch {training_epoch + 1}/{epochs}, ({phase}) Loss: {loss} | Accuracy: {acc}")  # Print loss
 
-
-            self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), verbose)
+            if self.scheduled:
+                optimizer.scheduler_step()
+                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(), optimizer.scheduler_state_dict(), verbose)
+            else:
+                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), verbose)
 
         self.__save_model(verbose)
 
@@ -144,11 +148,12 @@ class b1_ModelTrainer:
         if verbose > 0:
             print(f"Saved model to {self.save_folder}/b1_model.pth")
 
-    def __save_checkpoint(self, epoch, model_state_dict, optimizer_state_dict, verbose=0):
+    def __save_checkpoint(self, epoch, model_state_dict, optimizer_state_dict, scheduler_state_dict=None, verbose=0):
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': model_state_dict,
             'optimizer_state_dict': optimizer_state_dict,
+            'scheduler_state_dict': scheduler_state_dict
         }
         torch.save(checkpoint, self.save_folder + f'/checkpoint-epoch{epoch}.pth')
         if verbose > 0:
@@ -163,6 +168,10 @@ class b1_ModelTrainer:
         epoch = checkpoint['epoch']
         model_state_dict = checkpoint['model_state_dict']
         optimizer_state_dict = checkpoint['optimizer_state_dict']
+        scheduler_state_dict = checkpoint['scheduler_state_dict']
         model = model.load_state_dict(model_state_dict)
-        optimizer = optimizer.load_state_dict(optimizer_state_dict)
+        if self.scheduled:
+            optimizer.load_state_dict(optimizer_state_dict, scheduler_state_dict)
+        else:
+            optimizer = optimizer.load_state_dict(optimizer_state_dict)
         return epoch, model, optimizer
