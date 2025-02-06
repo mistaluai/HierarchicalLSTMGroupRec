@@ -66,7 +66,7 @@ class b1_ModelTrainer:
                         optimizer.step()
                         epoch_loss += loss.item()  # Accumulate loss
 
-                    train_losses.append(epoch_loss)
+                    train_losses.append(epoch_loss / len(dataloader))
                     print(
                         f"Epoch {training_epoch + 1}/{epochs}, {phase} Loss: {epoch_loss / len(dataloader)}")  # Print loss
                 else:
