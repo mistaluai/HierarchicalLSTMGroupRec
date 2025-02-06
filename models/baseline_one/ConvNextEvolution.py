@@ -1,18 +1,18 @@
+from torchvision import datasets, transforms, models
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
-from torchvision.models import ResNet50_Weights
 from tqdm import tqdm
 
-class ResnetEvolution(nn.Module):
+class ConvNextEvolution(nn.Module):
     def __init__(self, hidden_layers=[]):
-        super(ResnetEvolution, self).__init__()
+        super(ConvNextEvolution, self).__init__()
         self.hidden_layers = hidden_layers
-        self.model = self.__init_backbone(torchvision.models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2))
+        self.model = self.__init_backbone(models.convnext_base(pretrained=True))
 
     def __init_backbone(self, backbone):
-        num_features = backbone.fc.in_features
+        num_features = backbone.classifier[2].in_features
 
         layers = []
         input_size = num_features  # Start with backbone output size
@@ -23,12 +23,12 @@ class ResnetEvolution(nn.Module):
 
         layers.append(nn.Linear(input_size, 8))  # Final output layer
 
-        backbone.fc = nn.Sequential(*layers)  # Output layer for binary classification
+        backbone.classifier[2] = nn.Sequential(*layers)  # Output layer for binary classification
 
         return backbone
 
     def get_fc(self):
-        return self.model.fc
+        return self.model.classifier[2]
 
     def forward(self, images):
         return self.model(images)
