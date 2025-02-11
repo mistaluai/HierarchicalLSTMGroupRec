@@ -34,6 +34,72 @@ class BoxInfo:
         self.grouping = grouping
         self.generated = generated
 
+
+class TrackingAnnotations:
+    def __init__(self, path, max_players=12):
+        """
+        Load tracking annotations from a file and store bounding boxes by frame.
+        
+        Args:
+            path (str): Path to the annotation file.
+            max_players (int): Maximum number of players to track (default: 12).
+        """
+        self.path = path
+        self.max_players = max_players
+        self.frame_boxes_dct = self._load_tracking_annot()
+
+    def _load_tracking_annot(self):
+        """
+        Internal method to parse the tracking file and store bounding boxes by frame.
+        
+        Returns:
+            dict: {frame_ID: list of BoxInfo objects}
+        """
+        player_boxes = {idx: [] for idx in range(self.max_players)}
+        frame_boxes_dct = {}
+
+        with open(self.path, 'r') as file:
+            for line in file:
+                box_info = BoxInfo(line)
+                if box_info.player_ID >= self.max_players:
+                    continue  # Ignore invalid player IDs
+                
+                player_boxes[box_info.player_ID].append(box_info)
+
+        # **Process the bounding boxes**
+        for player_ID, boxes_info in player_boxes.items():
+            # Keep only the middle 9 frames (empirical choice)
+            boxes_info = boxes_info[5:-5]  
+
+            for box_info in boxes_info:
+                if box_info.frame_ID not in frame_boxes_dct:
+                    frame_boxes_dct[box_info.frame_ID] = []
+                
+                frame_boxes_dct[box_info.frame_ID].append(box_info)
+
+        return frame_boxes_dct
+
+    def get_boxes(self, frame_ID):
+        """
+        Retrieve bounding boxes for a given frame.
+
+        Args:
+            frame_ID (int): The frame number.
+
+        Returns:
+            list of BoxInfo: List of player bounding boxes in this frame.
+        """
+        return self.frame_boxes_dct.get(frame_ID, [])
+
+    def __len__(self):
+        """ Return the number of frames with annotations. """
+        return len(self.frame_boxes_dct)
+
+    def __getitem__(self, frame_ID):
+        """ Support dictionary-like access. """
+        return self.get_boxes(frame_ID)
+
+
 class B2Dataset(Dataset):
 
     VIDEO_SPLITS = {
