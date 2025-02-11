@@ -1,3 +1,6 @@
+from training.training_utils import TrainingUtilities
+
+
 class b1_ModelTrainer:
     def __init__(self, model, optimizer, scheduled, criterion, epochs, dataloaders, device, save_folder,
                  is_continue=False, checkpoint=None):
@@ -85,15 +88,15 @@ class b1_ModelTrainer:
 
             if self.scheduled:
                 optimizer.scheduler_step()
-                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
-                                       optimizer.scheduler_state_dict(), verbose)
+                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
+                                       optimizer.scheduler_state_dict(), self.save_folder, verbose)
             else:
-                self.__save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(), verbose)
+                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(),self.save_folder, verbose)
 
             if training_epoch % 10 == 0:
-                self.__save_model(training_epoch, verbose)
+                TrainingUtilities.save_model(model, training_epoch, self.save_folder,verbose)
 
-        self.__save_model('final_', verbose)
+        TrainingUtilities.save_model(model, 'final_', self.save_folder, verbose)
         return train_losses, val_losses, val_accuracies
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0, verbose=0):
@@ -161,36 +164,3 @@ class b1_ModelTrainer:
         avg_loss = val_loss / len(dataloader)
         accuracy = correct_preds / total_preds
         return avg_loss, accuracy
-
-    def __save_model(self, training_epoch, verbose=0):
-        torch.save(self.model.state_dict(), self.save_folder + f"/{training_epoch}b1_model.pth")
-        if verbose > 0:
-            print(f"Saved model to {self.save_folder}/b1_model.pth")
-
-    def __save_checkpoint(self, epoch, model_state_dict, optimizer_state_dict, scheduler_state_dict=None, verbose=0):
-        checkpoint = {
-            'epoch': epoch,
-            'model_state_dict': model_state_dict,
-            'optimizer_state_dict': optimizer_state_dict,
-            'scheduler_state_dict': scheduler_state_dict
-        }
-        torch.save(checkpoint, self.save_folder + f'/checkpoint-epoch{epoch}.pth')
-        if verbose > 0:
-            print(f'Saved checkpoint to {self.save_folder}/checkpoint-epoch{epoch}.pth')
-
-    def __load_checkpoint(self, model, optimizer, checkpoint_path, verbose=0):
-        checkpoint = torch.load(checkpoint_path)
-
-        if verbose > 0:
-            print(f"Loading checkpoint from {checkpoint_path}")
-
-        epoch = checkpoint['epoch']
-        model_state_dict = checkpoint['model_state_dict']
-        optimizer_state_dict = checkpoint['optimizer_state_dict']
-        scheduler_state_dict = checkpoint['scheduler_state_dict']
-        model = model.load_state_dict(model_state_dict)
-        if self.scheduled:
-            optimizer.load_state_dict(optimizer_state_dict, scheduler_state_dict)
-        else:
-            optimizer = optimizer.load_state_dict(optimizer_state_dict)
-        return epoch, model, optimizer
