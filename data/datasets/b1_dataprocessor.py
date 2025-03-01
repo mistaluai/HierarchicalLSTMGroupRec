@@ -5,16 +5,28 @@ from charset_normalizer.md import annotations
 
 
 class DataProcessorBaselineOne():
-    def __init__(self, videos_root):
+    def __init__(self, videos_root, map_classes=True):
         self.root = videos_root
         self.data_classes = self.concat_annotations()
         self.dataset = self.collect_video_data()
+
+        self.map_classes = map_classes
+        self.label_mapping = {'l-spike': 0, 'l_set': 1, 'r_set': 2, 'r-pass': 3, 'r_spike': 4, 'l-pass': 5, 'r_winpoint': 6, 'l_winpoint': 7}
+
+        self.dataset_df = self.__prepare_df()
+
+
+    def __prepare_df(self):
+        df = pd.DataFrame(self.dataset)
+        if self.map_classes:
+            df['mapped_class'] = df['class'].map(self.label_mapping)
+        return df
 
     def get_dataset(self):
         return self.dataset
 
     def get_dataset_df(self):
-        return pd.DataFrame(self.dataset)
+        return self.dataset_df
 
     def __process_annotations(self, annotations_file):
         data_dict = {}
