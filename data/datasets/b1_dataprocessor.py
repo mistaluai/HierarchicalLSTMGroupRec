@@ -1,5 +1,6 @@
 import os
 
+import pandas as pd
 from charset_normalizer.md import annotations
 
 
@@ -11,6 +12,9 @@ class DataProcessorBaselineOne():
 
     def get_dataset(self):
         return self.dataset
+
+    def get_dataset_df(self):
+        return pd.DataFrame(self.dataset)
 
     def __process_annotations(self, annotations_file):
         data_dict = {}
