@@ -35,36 +35,37 @@ class b1_ModelTester():
             dataloader = tqdm(dataloader, desc="Testing")
 
         with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs = inputs.to(self.DEVICE)
-                labels = labels.to(self.DEVICE)
+            with torch.amp.autocast('cuda'):
+                for inputs, labels in dataloader:
+                    inputs = inputs.to(self.DEVICE)
+                    labels = labels.to(self.DEVICE)
 
-                if verbose > 2:
-                    print(f"labels: {labels}")
+                    if verbose > 2:
+                        print(f"labels: {labels}")
 
-                # Forward pass
-                logits = model(inputs)
-                probs = F.softmax(logits, dim=1)
+                    # Forward pass
+                    logits = model(inputs)
+                    probs = F.softmax(logits, dim=1)
 
-                if verbose > 3:
-                    print(f"logits: {logits}")
-                    print(f"probs: {probs}")
+                    if verbose > 3:
+                        print(f"logits: {logits}")
+                        print(f"probs: {probs}")
 
-                # Calculate loss
-                loss = criterion(logits, labels)
-                val_loss += loss.item()
+                    # Calculate loss
+                    loss = criterion(logits, labels)
+                    val_loss += loss.item()
 
-                # Get predictions
-                predicted = torch.argmax(probs, dim=1)
+                    # Get predictions
+                    predicted = torch.argmax(probs, dim=1)
 
-                if verbose > 2:
-                    print(f"predicted: {predicted}")
-                    print(f"true/false: {(predicted == labels)}")
+                    if verbose > 2:
+                        print(f"predicted: {predicted}")
+                        print(f"true/false: {(predicted == labels)}")
 
-                # Store predictions and labels for later metric calculation
-                all_labels.extend(labels.cpu().numpy())
-                all_predictions.extend(predicted.cpu().numpy())
-                all_probabilities.extend(probs.cpu().numpy())
+                    # Store predictions and labels for later metric calculation
+                    all_labels.extend(labels.cpu().numpy())
+                    all_predictions.extend(predicted.cpu().numpy())
+                    all_probabilities.extend(probs.cpu().numpy())
 
         # Calculate average loss
         avg_loss = val_loss / len(dataloader)
