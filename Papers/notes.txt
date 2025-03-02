@@ -1,4 +1,10 @@
 Steps to implement 2nd baseline:
 - extract for each player in the scene predictions 
+    - we need to test the dataexgtraction and preprocessing for player level
+
+    Create annotation processing class
+    dataset class fecthing the image and transforms, dataset return one image
+    input size may cause problem 
+    so we need other function that take the path and return labels
 - stack these predications and feed them into nn
 - we can try adding Fc after the feature extractor direcly or add it after pooling layer

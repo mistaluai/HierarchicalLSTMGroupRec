@@ -1,4 +1,4 @@
-notebooks/b1/b1-model-kaggle-trainer(fixed_lr)/checkpoints/checkpoint-epoch18.pth
 notebooks/b1/b1-model-kaggle-trainer(fixed_lr)/model/b1_model.pth
 notebooks/b1/b1-model-kaggle-trainer-lr-decay/model/b1_model.pth
 /data/videos_sample
+notebooks/b1/b1-model-kaggle-trainer(fixed_lr)/checkpoints/checkpoint-epoch18.pth
