@@ -64,55 +64,40 @@ class B2Dataset(Dataset):
         return frame, frame_class, player_images, player_labels
             
     
-        
-        
-
-        
-    def preprocess_crops(self, image, boxes_info):
-        """
-        Extracts and preprocesses cropped player images from a given frame.
-        """
-        preprocessed_images = []
-        for box_info in boxes_info:
-            x1, y1, x2, y2 = box_info.box
-            cropped_image = image.crop((x1, y1, x2, y2))
-
-            # Visualization (Optional)
-            if self.visualize:
-                cv2.imshow('Cropped Image', np.array(cropped_image))
-                cv2.waitKey(1)
-                cv2.destroyAllWindows()
-
-            # Apply transformations
-            if self.transform:
-                preprocessed_images.append(self.transform(cropped_image).unsqueeze(0))
-
-        # If no players detected, return a zero tensor
-        if len(preprocessed_images) == 0:
-            return torch.zeros(1, 3, 224, 224)
-
-        return torch.cat(preprocessed_images)  # Shape: (num_players, 3, 224, 224)
-
     
+class PlayerDataset(Dataset):
+    
+    def __init__(self, dataset, transform=None):
+        self.dataset = dataset
+        self.transform = transform or transforms.Compose([
+            transforms.Resize((256, 256)),
+            transforms.CenterCrop((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        
+        self.index_map = []
+        for item_idx, item in enumerate(self.dataset):
+            for player_idx, (bbox, action_class) in enumerate(item['players']):
+                self.index_map.append((item_idx, player_idx))
+        
     def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        """Extracts player-level features, applies pooling, and returns the frame-level representation."""
-        img_path = self.data.iloc[idx]['img_path']
-        label = self.data.iloc[idx]['Mapped_Label']
-        frame_ID = self.data.iloc[idx]['frame_ID']
-        
-        # Load image
-        image = Image.open(img_path).convert("RGB")
-
-        # Get bounding boxes
-        boxes_info = self.tracking_annot.get_boxes(frame_ID)
-
-        # Preprocess cropped player images
-        preprocessed_images = self.preprocess_crops(image, boxes_info)
-        return preprocessed_images, torch.tensor(label, dtype=torch.long)
+        return sum(len(item['players']) for item in self.dataset)
     
+    def __getitem__(self, idx):
+        item_idx, player_idx = self.index_map[idx]
+        item = self.dataset[item_idx]
+        frame_path = os.path.join(self.root_dir, item['frame']) if self.root_dir else item['frame']
+        bbox, action_class = item['players'][player_idx]
+        
+        image = Image.open(frame_path).convert('RGB')
+        cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
+
+
+        if self.transform:
+            cropped_image = self.transform(cropped_image)
+
+        return cropped_image, action_class
 ### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
 def custom_collate_fn(batch):
     """
