@@ -8,67 +8,7 @@ import cv2
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
-class BoxInfo:
-    """Parses tracking annotation lines and stores player bounding box information."""
-    def __init__(self, line):
-        words = line.split()
-        self.category = words.pop()
-        words = [int(string) for string in words]
-        self.player_ID = words[0]
-        del words[0]
-
-        x1, y1, x2, y2, frame_ID, lost, grouping, generated = words
-        self.box = (x1, y1, x2, y2)
-        self.frame_ID = frame_ID
-        self.lost = lost
-        self.grouping = grouping
-        self.generated = generated
-        
-class TrackingAnnotations:
-    def __init__(self, path, max_players=12):
-        """Load tracking annotations from a file and store bounding boxes by frame."""
-        self.path = path
-        self.max_players = max_players
-        self.frame_boxes_dct = self._load_tracking_annot()
-
-    def _load_tracking_annot(self):
-        """Parse the tracking file and store bounding boxes by frame."""
-        player_boxes = {idx: [] for idx in range(self.max_players)}
-        frame_boxes_dct = {}
-
-        with open(self.path, 'r') as file:
-            for line in file:
-                box_info = BoxInfo(line)
-                if box_info.player_ID >= self.max_players:
-                    continue  # Ignore invalid player IDs
-                
-                player_boxes[box_info.player_ID].append(box_info)
-                 ## here we are moving forward in time
-
-        # Process bounding boxes          # do we need to clip specific frames?
-        for player_ID, boxes_info in player_boxes.items():
-            boxes_info = boxes_info[5:-5]  # Keep middle frames only
-
-            for box_info in boxes_info:
-                if box_info.frame_ID not in frame_boxes_dct:
-                    frame_boxes_dct[box_info.frame_ID] = []
-                
-                frame_boxes_dct[box_info.frame_ID].append(box_info)
-
-        return frame_boxes_dct
-    
-    def get_boxes(self, frame_ID):
-        """Retrieve bounding boxes for a given frame."""
-        return self.frame_boxes_dct.get(frame_ID, [])
-
-    def __len__(self):
-        """Return the number of frames with annotations."""
-        return len(self.frame_boxes_dct)
-
-    def __getitem__(self, frame_ID):
-        """Support dictionary-like access."""
-        return self.get_boxes(frame_ID)
-
+from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 class B2Dataset(Dataset):
 
     VIDEO_SPLITS = {
@@ -77,10 +17,7 @@ class B2Dataset(Dataset):
         'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
     }
 
-    def __init__(self, csv_file, tracking_annot_path, split='train', transform=None, visualize=False):
-        self.data = pd.read_csv(csv_file)
-        self.visualize = visualize  # Flag for visualization
-        self.frame_boxes_dct =  TrackingAnnotations(tracking_annot_path)   # Load bounding boxes per frame
+    def __init__(self, data, split='train', transform=None, player_transform = None , visualize=False):
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
@@ -89,12 +26,47 @@ class B2Dataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+        self.player_transform = player_transform or transforms.Compose([
+            transforms.Resize((256, 256)),
+            transforms.CenterCrop((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
         
-        # Filter dataset based on split
-        if split in self.VIDEO_SPLITS:
-            self.data = self.data[self.data['video_names'].astype(int).isin(self.VIDEO_SPLITS[split])]
-        else:
-            raise ValueError(f'Invalid split: {split}. Choose from {list(self.VIDEO_SPLITS.keys())}')
+        self.data = data
+        
+    def __len__(self):
+        return {
+            'frames': len(self.data),
+            'players': sum([len(boxes) for boxes in self.data['boxes']])
+            }   
+        
+    def __getitem__(self, idx):
+        """Extracts player-level features, applies pooling, and returns the frame-level representation."""
+        item = self.data[idx]
+        frame = Image.open(item['frame']).convert("RGB")
+        frame_class = item['class']
+        
+        if self.transform:
+            frame = self.transform(frame)
+        
+        # Load and transform player bounding boxes
+        player_images = []
+        player_labels = []
+        for (bbox, player_label) in item["players"]:
+            x1, y1, x2, y2 = bbox
+            player_image = frame.crop((x1, y1, x2, y2))
+            if self.player_transform:
+                player_image = self.player_transform(player_image)
+            player_images.append(player_image)
+            player_labels.append(player_label)
+
+        return frame, frame_class, player_images, player_labels
+            
+    
+        
+        
+
         
     def preprocess_crops(self, image, boxes_info):
         """
