@@ -62,42 +62,52 @@ class B2Dataset(Dataset):
             player_labels.append(player_label)
 
         return frame, frame_class, player_images, player_labels
-            
-    
-    
+
+
 class PlayerDataset(Dataset):
-    
     def __init__(self, dataset, transform=None):
         self.dataset = dataset
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-        
+        if transform is None:
+            self.transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+        else:
+            self.transform = transform
+
         self.index_map = []
         for item_idx, item in enumerate(self.dataset):
             for player_idx, (bbox, action_class) in enumerate(item['players']):
                 self.index_map.append((item_idx, player_idx))
-        
+        self.invalid = 0
+
     def __len__(self):
         return sum(len(item['players']) for item in self.dataset)
-    
+
     def __getitem__(self, idx):
         item_idx, player_idx = self.index_map[idx]
         item = self.dataset[item_idx]
-        frame_path = os.path.join(self.root_dir, item['frame']) if self.root_dir else item['frame']
+        frame_path = item['frame']
         bbox, action_class = item['players'][player_idx]
-        
-        image = Image.open(frame_path).convert('RGB')
-        cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
 
+        image = Image.open(frame_path).convert('RGB')
+        x1, y1, w, h = bbox
+        x2 = x1 + w
+        y2 = y1 + h
+        bbox = (x1, y1, x2, y2)
+
+        if bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
+            self.invalid += 1
+            print(f'invalids:{self.invalid}')
+            return torch.rand(3, 224, 244), torch.tensor(action_class, dtype=torch.long)
+
+        cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
 
         if self.transform:
             cropped_image = self.transform(cropped_image)
 
-        return cropped_image, action_class
+        return cropped_image, torch.tensor(action_class, dtype=torch.long)
 ### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
 def custom_collate_fn(batch):
     """
