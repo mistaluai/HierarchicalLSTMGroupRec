@@ -9,15 +9,16 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
 from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
-class B2Dataset(Dataset):
 
+
+class B2Dataset(Dataset):
     VIDEO_SPLITS = {
         'train': {1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54},
         'val': {0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51},
         'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
     }
 
-    def __init__(self, data, split='train', transform=None, player_transform = None , visualize=False):
+    def __init__(self, data, split='train', transform=None, player_transform=None, visualize=False):
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
@@ -32,29 +33,31 @@ class B2Dataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        
+
         self.data = data
-        
+
     def __len__(self):
         return {
             'frames': len(self.data),
-            'players': sum([len(boxes) for boxes in self.data['boxes']])
-            }   
-        
+            'players': sum([len(boxes) for boxes in self.data['players']])
+        }
+
     def __getitem__(self, idx):
         """Extracts player-level features, applies pooling, and returns the frame-level representation."""
         item = self.data[idx]
         frame = Image.open(item['frame']).convert("RGB")
-        frame_class = item['class']
-        
+        frame_class = item['mapped_class']
+
         if self.transform:
             frame = self.transform(frame)
-        
+
         # Load and transform player bounding boxes
         player_images = []
         player_labels = []
         for (bbox, player_label) in item["players"]:
-            x1, y1, x2, y2 = bbox
+            x1, y1, w, h = bbox
+            x2 = x1 + w
+            y2 = y1 + h
             player_image = frame.crop((x1, y1, x2, y2))
             if self.player_transform:
                 player_image = self.player_transform(player_image)
