@@ -20,8 +20,7 @@ class ModelConfig:
     is_tpu: bool = False
     pretrained: bool = True
     
-    
-## criterion, optim, lr, GPU/TPU
+
 class ResnetEvolution(nn.Module):
     def __init__(self, config: ModelConfig):
         super(ResnetEvolution, self).__init__()
@@ -49,29 +48,25 @@ class ResnetEvolution(nn.Module):
 
         self.classifer = nn.Sequential(*layers)  # Output layer for binary classification
 
-    
-    def forward(self, images):
-
+       
+    def forward(self, images_list):
         """
-        Process a single frame containing multiple person images.
-        
-        Args:
-            images (List[torch.Tensor]): List of cropped person images in a frame (each shape: [3, 224, 224])
-
-        Returns:
-            torch.Tensor: Softmax output for group activity classification
+        Forward pass when input is a list of variable-length cropped images.
         """
-        person_features = []
-        for img in images:
+        batch_features = []
+        for images in images_list:  
+            if len(images) == 0:  # Handle empty detection case
+                batch_features.append(torch.zeros(1, 2048))  # Assuming ResNet50 outputs 2048 features
+                continue
             
-            img = img.unsqueeze(0).to(self.device)  # Add batch dimension   #this preprocessing need to be transfered to the 
-            features = self.feature_extractor(img)  # Extract deep features
-            person_features.append(features.squeeze(0))  # Remove batch dimension
-
-        person_features = torch.stack(person_features)  # Shape: (num_people, 4096)
-        pooled_features = self.pooling(person_features.unsqueeze(0).transpose(1, 2)).squeeze()  # Apply average pooling
-
-        return self.classifier(pooled_features)  # Classify group activity
+            images = torch.cat(images)  # Convert list to tensor (num_players, 3, 224, 224)
+            with torch.no_grad():
+                features = self.feature_extractor(images)  # Pass through ResNet
+            pooled_features = features.mean(dim=0)  # Pool over players (avg pooling)
+            
+            batch_features.append(pooled_features)
+        
+        return torch.stack(batch_features)  # Shape: (batch_size, 2048)
 
             
         

@@ -6,8 +6,8 @@ class AdamWScheduled():
         self.optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model_params),  lr=lr)
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size, gamma)
 
-    def step(self):
-        self.optimizer.step()
+    def step(self, scaler):
+        scaler.step(self.optimizer)
 
     def zero_grad(self):
         self.optimizer.zero_grad()
