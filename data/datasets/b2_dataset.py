@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -68,7 +70,7 @@ class B2Dataset(Dataset):
 
 
 class PlayerDataset(Dataset):
-    def __init__(self, dataset, split='train', transform=None):
+    def __init__(self, dataset, split='train', transform=None, downsampled_class=8, downsample_ratio=0.15):
         self.dataset = dataset
         if transform is None:
             self.transform = transforms.Compose([
@@ -88,11 +90,24 @@ class PlayerDataset(Dataset):
         self.index_map = []
         list_split = VIDEO_SPLITS[split]
         self.labels = []
+
+        downsampled_class_index_map = []
         for item_idx, item in enumerate(self.dataset):
             if int(item['video']) in list_split:
                 for player_idx, (bbox, action_class) in enumerate(item['players']):
-                    self.index_map.append((item_idx, player_idx))
-                    self.labels.append(action_class)
+                    if action_class != downsampled_class:
+                        self.index_map.append((item_idx, player_idx))
+                        self.labels.append(action_class)
+                    else:
+                        downsampled_class_index_map.append((item_idx, player_idx))
+
+        downsample_size = int(len(downsampled_class_index_map) * downsample_ratio)
+        if split == 'train':
+            downsampled_class_index_map = random.sample(downsampled_class_index_map, downsample_size)
+
+        self.index_map.extend(downsampled_class_index_map)
+        self.labels.extend([downsampled_class] * len(downsampled_class_index_map))
+
         print(f'the {split} has {len(self.index_map)} samples')
         self.invalid = 0
 
