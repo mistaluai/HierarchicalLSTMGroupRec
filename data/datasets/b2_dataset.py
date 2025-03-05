@@ -87,12 +87,17 @@ class PlayerDataset(Dataset):
 
         self.index_map = []
         list_split = VIDEO_SPLITS[split]
+        self.labels = []
         for item_idx, item in enumerate(self.dataset):
             if int(item['video']) in list_split:
                 for player_idx, (bbox, action_class) in enumerate(item['players']):
                     self.index_map.append((item_idx, player_idx))
+                    self.labels.append(action_class)
         print(f'the {split} has {len(self.index_map)} samples')
         self.invalid = 0
+
+    def get_labels(self):
+        return self.labels
 
     def __len__(self):
         return len(self.index_map)
