@@ -68,7 +68,7 @@ class B2Dataset(Dataset):
 
 
 class PlayerDataset(Dataset):
-    def __init__(self, dataset, transform=None):
+    def __init__(self, dataset, split='train', transform=None):
         self.dataset = dataset
         if transform is None:
             self.transform = transforms.Compose([
@@ -79,14 +79,23 @@ class PlayerDataset(Dataset):
         else:
             self.transform = transform
 
+        VIDEO_SPLITS = {
+            'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
+            'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
+            'test': [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
+        }
+
         self.index_map = []
+        list_split = VIDEO_SPLITS[split]
         for item_idx, item in enumerate(self.dataset):
-            for player_idx, (bbox, action_class) in enumerate(item['players']):
-                self.index_map.append((item_idx, player_idx))
+            if int(item['video']) in list_split:
+                for player_idx, (bbox, action_class) in enumerate(item['players']):
+                    self.index_map.append((item_idx, player_idx))
+        print(f'the {split} has {len(self.index_map)} samples')
         self.invalid = 0
 
     def __len__(self):
-        return sum(len(item['players']) for item in self.dataset)
+        return len(self.index_map)
 
     def __getitem__(self, idx):
         item_idx, player_idx = self.index_map[idx]
