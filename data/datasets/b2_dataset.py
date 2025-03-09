@@ -70,7 +70,7 @@ class B2Dataset(Dataset):
 
 
 class PlayerDataset(Dataset):
-    def __init__(self, dataset, split='train', transform=None, downsampled_class=8, downsample_ratio=0.15):
+    def __init__(self, dataset, split='train', transform=None, downsampled_class=8, downsample_ratio=0.15, downsample=True):
         self.dataset = dataset
         if transform is None:
             self.transform = transforms.Compose([
@@ -102,7 +102,7 @@ class PlayerDataset(Dataset):
                         downsampled_class_index_map.append((item_idx, player_idx))
 
         downsample_size = int(len(downsampled_class_index_map) * downsample_ratio)
-        if split == 'train':
+        if downsample:
             downsampled_class_index_map = random.sample(downsampled_class_index_map, downsample_size)
 
         self.index_map.extend(downsampled_class_index_map)
