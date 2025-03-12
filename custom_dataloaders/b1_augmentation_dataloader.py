@@ -5,9 +5,9 @@ from torchvision.transforms import v2
 
 
 class AugmentationDataLoader():
-    def __init__(self, dataset, batch_size, shuffle, num_workers, pin_memory, num_classes):
-        cutmix = v2.CutMix(num_classes=num_classes)
-        mixup = v2.MixUp(num_classes=num_classes)
+    def __init__(self, dataset, batch_size, shuffle, num_workers, pin_memory, num_classes, mixup_alpha=1, cutmix_alpha=1):
+        cutmix = v2.CutMix(num_classes=num_classes, alpha=cutmix_alpha)
+        mixup = v2.MixUp(num_classes=num_classes, alpha=mixup_alpha)
         self.cutmix_or_mixup = v2.RandomChoice([cutmix, mixup])
         self.loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory, shuffle=shuffle, collate_fn=self.collate_fn)
 
