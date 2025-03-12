@@ -1,12 +1,16 @@
 import torch
 from collections import Counter
 
+from torch import nn
+
+
 class WeightedCrossEntropyLoss(nn.Module):
     def __init__(self, dataset, device, num_classes=8):
         super().__init__()
         self.device = device
         self.num_classes = num_classes
-        self.loss = nn.CrossEntropyLoss(weight=self.__compute_weights(dataset).to(device))
+        self.weights = self.__compute_weights(dataset).to(device)
+        self.loss = nn.CrossEntropyLoss(weight=self.weights)
 
     def __compute_weights(self, dataset):
         labels = torch.tensor(dataset.get_labels(), dtype=torch.long)
