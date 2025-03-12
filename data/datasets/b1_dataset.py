@@ -23,6 +23,9 @@ class B1Dataset(Dataset):
         else:
             raise NameError(f'There is no such split: {split}, only {self.VIDEO_SPLITS}')
 
+    def get_labels(self):
+        return self.data['mapped_class'].tolist()
+
     def __len__(self):
         return len(self.data)
 
