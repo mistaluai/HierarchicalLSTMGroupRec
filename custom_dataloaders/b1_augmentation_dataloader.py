@@ -5,7 +5,10 @@ from torchvision.transforms import v2
 
 
 class AugmentationDataLoader():
-    def __init__(self, dataset, batch_size, shuffle, num_workers, pin_memory, num_classes, mixup_alpha=1, cutmix_alpha=1):
+    def __init__(self, dataset, batch_size, shuffle, num_workers, pin_memory, num_classes, mixup_alpha=1.0, cutmix_alpha=1.0):
+        mixup_alpha = float(mixup_alpha)
+        cutmix_alpha = float(cutmix_alpha)
+
         cutmix = v2.CutMix(num_classes=num_classes, alpha=cutmix_alpha)
         mixup = v2.MixUp(num_classes=num_classes, alpha=mixup_alpha)
         self.cutmix_or_mixup = v2.RandomChoice([cutmix, mixup])
@@ -15,4 +18,5 @@ class AugmentationDataLoader():
         return self.loader
 
     def collate_fn(self, batch):
-        return self.cutmix_or_mixup(*default_collate(batch))
+        inputs, labels = default_collate(batch)
+        return self.cutmix_or_mixup(inputs, labels)
