@@ -6,4 +6,4 @@ class AugmentationCELoss(WeightedCrossEntropyLoss):
         super().__init__(dataset, device, num_classes)
 
     def forward(self, logit, target):
-        return F.cross_entropy(logit, target, weight=self.weight)
+        return F.cross_entropy(logit, target, weight=self.weights)
