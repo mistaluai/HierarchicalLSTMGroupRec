@@ -37,6 +37,5 @@ class B1Dataset(Dataset):
         image = Image.open(img_path).convert("RGB")
 
         # Apply transformations if provided
-        if self.transform:
-            image = self.transform(image)
+        image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
