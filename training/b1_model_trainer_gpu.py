@@ -1,4 +1,5 @@
 from training.training_utils import TrainingUtilities
+from copy import deepcopy
 
 
 class b1_ModelTrainer:
@@ -21,7 +22,8 @@ class b1_ModelTrainer:
     # verbose 4: logits
     def train_model(self, verbose=0):
         model, optimizer, criterion, epochs, dataloaders, scaler = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders, self.scaler
-
+        best_model = model
+        best_acc = 0.0
         epoch = 0
 
         train_losses = []
@@ -85,6 +87,9 @@ class b1_ModelTrainer:
                         continue
                     model.eval()
                     loss, acc = self.__eval_model(dataloader, verbose)
+                    if acc > best_acc:
+                        best_acc = acc
+                        best_model = deepcopy(model)
                     val_losses.append(loss)
                     val_accuracies.append(acc)
                     print(
@@ -92,16 +97,18 @@ class b1_ModelTrainer:
 
             if self.scheduled:
                 optimizer.scheduler_step()
-                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
-                                       optimizer.scheduler_state_dict(), self.save_folder, verbose)
+                if training_epoch % 10 == 0:
+                    TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
+                                           optimizer.scheduler_state_dict(), self.save_folder, verbose)
             else:
-                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(),self.save_folder, verbose)
+                if training_epoch % 10 == 0:
+                    TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(),self.save_folder, verbose)
 
             if training_epoch % 10 == 0:
                 TrainingUtilities.save_model(model, training_epoch, self.save_folder,verbose)
 
-        TrainingUtilities.save_model(model, 'final_', self.save_folder, verbose)
-        return train_losses, val_losses, val_accuracies
+        TrainingUtilities.save_model(best_model, 'final_', self.save_folder, verbose)
+        return train_losses, val_losses, val_accuracies, best_model
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0, verbose=0):
         if phase == "train":
