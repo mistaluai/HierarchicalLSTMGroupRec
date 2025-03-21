@@ -19,9 +19,12 @@ class B1Dataset(Dataset):
             self.transform = transform
 
         if split in self.VIDEO_SPLITS:
-            self.data = self.data[self.data['video'].astype(int).isin(self.VIDEO_SPLITS[split])]
+            self.data = self.data[self.data['video'].astype(int).isin(self.VIDEO_SPLITS[split])].reset_index(drop=True)
         else:
             raise NameError(f'There is no such split: {split}, only {self.VIDEO_SPLITS}')
+
+    def get_labels(self):
+        return self.data['mapped_class'].tolist()
 
     def __len__(self):
         return len(self.data)
@@ -34,6 +37,5 @@ class B1Dataset(Dataset):
         image = Image.open(img_path).convert("RGB")
 
         # Apply transformations if provided
-        if self.transform:
-            image = self.transform(image)
+        image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)

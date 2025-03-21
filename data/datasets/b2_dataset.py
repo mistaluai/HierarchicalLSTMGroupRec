@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -8,79 +10,17 @@ import cv2
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
-class BoxInfo:
-    """Parses tracking annotation lines and stores player bounding box information."""
-    def __init__(self, line):
-        words = line.split()
-        self.category = words.pop()
-        words = [int(string) for string in words]
-        self.player_ID = words[0]
-        del words[0]
+from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 
-        x1, y1, x2, y2, frame_ID, lost, grouping, generated = words
-        self.box = (x1, y1, x2, y2)
-        self.frame_ID = frame_ID
-        self.lost = lost
-        self.grouping = grouping
-        self.generated = generated
-        
-class TrackingAnnotations:
-    def __init__(self, path, max_players=12):
-        """Load tracking annotations from a file and store bounding boxes by frame."""
-        self.path = path
-        self.max_players = max_players
-        self.frame_boxes_dct = self._load_tracking_annot()
-
-    def _load_tracking_annot(self):
-        """Parse the tracking file and store bounding boxes by frame."""
-        player_boxes = {idx: [] for idx in range(self.max_players)}
-        frame_boxes_dct = {}
-
-        with open(self.path, 'r') as file:
-            for line in file:
-                box_info = BoxInfo(line)
-                if box_info.player_ID >= self.max_players:
-                    continue  # Ignore invalid player IDs
-                
-                player_boxes[box_info.player_ID].append(box_info)
-                 ## here we are moving forward in time
-
-        # Process bounding boxes          # do we need to clip specific frames?
-        for player_ID, boxes_info in player_boxes.items():
-            boxes_info = boxes_info[5:-5]  # Keep middle frames only
-
-            for box_info in boxes_info:
-                if box_info.frame_ID not in frame_boxes_dct:
-                    frame_boxes_dct[box_info.frame_ID] = []
-                
-                frame_boxes_dct[box_info.frame_ID].append(box_info)
-
-        return frame_boxes_dct
-    
-    def get_boxes(self, frame_ID):
-        """Retrieve bounding boxes for a given frame."""
-        return self.frame_boxes_dct.get(frame_ID, [])
-
-    def __len__(self):
-        """Return the number of frames with annotations."""
-        return len(self.frame_boxes_dct)
-
-    def __getitem__(self, frame_ID):
-        """Support dictionary-like access."""
-        return self.get_boxes(frame_ID)
 
 class B2Dataset(Dataset):
-
     VIDEO_SPLITS = {
         'train': {1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54},
         'val': {0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51},
         'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
     }
 
-    def __init__(self, csv_file, tracking_annot_path, split='train', transform=None, visualize=False):
-        self.data = pd.read_csv(csv_file)
-        self.visualize = visualize  # Flag for visualization
-        self.frame_boxes_dct =  TrackingAnnotations(tracking_annot_path)   # Load bounding boxes per frame
+    def __init__(self, data, split='train', transform=None, player_transform=None, visualize=False):
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
@@ -89,58 +29,117 @@ class B2Dataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        
-        # Filter dataset based on split
-        if split in self.VIDEO_SPLITS:
-            self.data = self.data[self.data['video_names'].astype(int).isin(self.VIDEO_SPLITS[split])]
-        else:
-            raise ValueError(f'Invalid split: {split}. Choose from {list(self.VIDEO_SPLITS.keys())}')
-        
-    def preprocess_crops(self, image, boxes_info):
-        """
-        Extracts and preprocesses cropped player images from a given frame.
-        """
-        preprocessed_images = []
-        for box_info in boxes_info:
-            x1, y1, x2, y2 = box_info.box
-            cropped_image = image.crop((x1, y1, x2, y2))
+        self.player_transform = player_transform or transforms.Compose([
+            transforms.Resize((256, 256)),
+            transforms.CenterCrop((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
 
-            # Visualization (Optional)
-            if self.visualize:
-                cv2.imshow('Cropped Image', np.array(cropped_image))
-                cv2.waitKey(1)
-                cv2.destroyAllWindows()
+        self.data = data
 
-            # Apply transformations
-            if self.transform:
-                preprocessed_images.append(self.transform(cropped_image).unsqueeze(0))
-
-        # If no players detected, return a zero tensor
-        if len(preprocessed_images) == 0:
-            return torch.zeros(1, 3, 224, 224)
-
-        return torch.cat(preprocessed_images)  # Shape: (num_players, 3, 224, 224)
-
-    
     def __len__(self):
-        return len(self.data)
+        return {
+            'frames': len(self.data),
+            'players': sum([len(boxes) for boxes in self.data['players']])
+        }
 
     def __getitem__(self, idx):
         """Extracts player-level features, applies pooling, and returns the frame-level representation."""
-        img_path = self.data.iloc[idx]['img_path']
-        label = self.data.iloc[idx]['Mapped_Label']
-        frame_ID = self.data.iloc[idx]['frame_ID']
-        
-        # Load image
-        image = Image.open(img_path).convert("RGB")
+        item = self.data[idx]
+        frame = Image.open(item['frame']).convert("RGB")
+        frame_class = item['mapped_class']
 
-        # Get bounding boxes
-        boxes_info = self.tracking_annot.get_boxes(frame_ID)
+        if self.transform:
+            frame = self.transform(frame)
 
-        # Preprocess cropped player images
-        preprocessed_images = self.preprocess_crops(image, boxes_info)
-        return preprocessed_images, torch.tensor(label, dtype=torch.long)
-    
+        # Load and transform player bounding boxes
+        player_images = []
+        player_labels = []
+        for (bbox, player_label) in item["players"]:
+            x1, y1, w, h = bbox
+            x2 = x1 + w
+            y2 = y1 + h
+            player_image = frame.crop((x1, y1, x2, y2))
+            if self.player_transform:
+                player_image = self.player_transform(player_image)
+            player_images.append(player_image)
+            player_labels.append(player_label)
+
+        return frame, frame_class, player_images, player_labels
+
+
+class PlayerDataset(Dataset):
+    def __init__(self, dataset, split='train', transform=None, downsampled_class=8, downsample_ratio=0.15, downsample=True):
+        self.dataset = dataset
+        if transform is None:
+            self.transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+        else:
+            self.transform = transform
+
+        VIDEO_SPLITS = {
+            'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
+            'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
+            'test': [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
+        }
+
+        self.index_map = []
+        list_split = VIDEO_SPLITS[split]
+        self.labels = []
+
+        downsampled_class_index_map = []
+        for item_idx, item in enumerate(self.dataset):
+            if int(item['video']) in list_split:
+                for player_idx, (bbox, action_class) in enumerate(item['players']):
+                    if action_class != downsampled_class:
+                        self.index_map.append((item_idx, player_idx))
+                        self.labels.append(action_class)
+                    else:
+                        downsampled_class_index_map.append((item_idx, player_idx))
+
+        downsample_size = int(len(downsampled_class_index_map) * downsample_ratio)
+        if downsample:
+            downsampled_class_index_map = random.sample(downsampled_class_index_map, downsample_size)
+
+        self.index_map.extend(downsampled_class_index_map)
+        self.labels.extend([downsampled_class] * len(downsampled_class_index_map))
+
+        print(f'the {split} has {len(self.index_map)} samples')
+        self.invalid = 0
+
+    def get_labels(self):
+        return self.labels
+
+    def __len__(self):
+        return len(self.index_map)
+
+    def __getitem__(self, idx):
+        item_idx, player_idx = self.index_map[idx]
+        item = self.dataset[item_idx]
+        frame_path = item['frame']
+        bbox, action_class = item['players'][player_idx]
+
+        image = Image.open(frame_path).convert('RGB')
+        x1, y1, w, h = bbox
+        x2 = x1 + w
+        y2 = y1 + h
+        bbox = (x1, y1, x2, y2)
+
+        if bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
+            self.invalid += 1
+            print(f'invalids:{self.invalid}')
+            return torch.rand(3, 224, 244), torch.tensor(action_class, dtype=torch.long)
+
+        cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
+
+        if self.transform:
+            cropped_image = self.transform(cropped_image)
+
+        return cropped_image, torch.tensor(action_class, dtype=torch.long)
 ### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
 def custom_collate_fn(batch):
     """
