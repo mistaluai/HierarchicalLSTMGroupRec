@@ -19,7 +19,7 @@ class B1Dataset(Dataset):
             self.transform = transform
 
         if split in self.VIDEO_SPLITS:
-            self.data = self.data[self.data['video'].astype(int).isin(self.VIDEO_SPLITS[split])]
+            self.data = self.data[self.data['video'].astype(int).isin(self.VIDEO_SPLITS[split])].reset_index(drop=True)
         else:
             raise NameError(f'There is no such split: {split}, only {self.VIDEO_SPLITS}')
 
