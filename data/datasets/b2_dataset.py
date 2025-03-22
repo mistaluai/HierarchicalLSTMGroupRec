@@ -136,8 +136,7 @@ class PlayerDataset(Dataset):
 
         cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
 
-        if self.transform:
-            cropped_image = self.transform(cropped_image)
+        cropped_image = self.transform(cropped_image)
 
         return cropped_image, torch.tensor(action_class, dtype=torch.long)
 ### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
