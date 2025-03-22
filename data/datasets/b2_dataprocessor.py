@@ -1,3 +1,8 @@
+import os
+
+import numpy as np
+
+
 class DataProcessorBaselineTwo():
 
     def __init__(self, videos_root, map_classes=True):
@@ -9,7 +14,6 @@ class DataProcessorBaselineTwo():
         self.map_classes = map_classes
         self.root = videos_root
 
-        self.data_classes, self.player_classes = self.concat_annotations()
         self.dataset = self.collect_video_data()
 
 
@@ -34,73 +38,43 @@ class DataProcessorBaselineTwo():
 
         return boxes
 
-    def __process_annotations(self, annotations_file):
-        classes_dict = {}
-        players_dict = {}
-        with open(annotations_file, 'r') as file:
-            for line in file:
-                parts = line.strip().split()
-
-                if len(parts) > 1:  # Ensure there are at least 2 words
-                    filename = parts[0]  # First word is the filename
-                    action = parts[1]  # Second word is the action
-                    classes_dict[filename] = action
-
-                    players_annotations = self.__process_players(line)
-                    players_dict[filename] = players_annotations
-
-        return classes_dict, players_dict
-
-    def concat_annotations(self):
-        data_classes = {}
-        playerdata_classes = {}
-        for video_folder in sorted(os.listdir(self.root)):  # Iterate over videos
-            video_path = os.path.join(self.root, video_folder)
-
-            if not os.path.isdir(video_path):
-                continue  # Skip files, process only directories
-
-            for annotation_folder in sorted(os.listdir(video_path)):  # Iterate over clips
-                annotation_path = os.path.join(video_path, annotation_folder)
-                if not os.path.isdir(annotation_path):
-                    if annotation_folder == 'annotations.txt':
-                        frame_classes, player_classes = self.__process_annotations(annotation_path)
-                        data_classes = {**frame_classes, **data_classes}
-                        playerdata_classes = {**player_classes, **playerdata_classes}
-
-        return data_classes, playerdata_classes
-
     def collect_video_data(self):
         dataset = []  # List to store video data
-        missing = 0
-        for video_folder in sorted(os.listdir(self.root)):  # Iterate over videos
-            video_path = os.path.join(self.root, video_folder)
-            if not os.path.isdir(video_path):
-                continue  # Skip files, process only directories
-
-            for clip_folder in sorted(os.listdir(video_path)):  # Iterate over clips
-                clip_path = os.path.join(video_path, clip_folder)
-                if not os.path.isdir(clip_path):
-                    continue
-
-                frames = sorted(
-                    [os.path.join(clip_path, f) for f in os.listdir(clip_path) if f.endswith(".jpg")]
-                )
-                if len(frames) == 41:  # Ensure expected number of frames
-                    target_frame = frames[20]
-                    frame_name = target_frame.split('/')[-1]
-                    if frame_name in self.data_classes:
-                        class_name = self.data_classes[frame_name]
-                        players_annotation = self.player_classes[frame_name]
-                        dataset.append({
-                            "video": video_folder,
-                            "clip": clip_folder,
-                            "frame": target_frame,
-                            "class": self.frame_mapping[class_name],
-                            "players": players_annotation
-                        })
-                    else:
-                        missing += 1
-
-        print(f'missing {missing} frames')
+        videos = np.arange(55)
+        for video in videos:
+            video_path = os.path.join(self.root, str(video))
+            annotation_path = os.path.join(video_path, 'annotations.txt')
+            data_from_annotation = self.__parse_annotation(annotation_path, video_path, video)
+            dataset.extend(data_from_annotation)
         return dataset
+
+    def __parse_annotation(self, annotation, video_path, video_id):
+        output = []
+        with open(annotation, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                # Extract the frame ID (image name) and frame activity class
+                frame_image = parts[0]  # Image name (e.g., '48075.jpg')
+                frame_activity_class = parts[1]  # Frame Activity Class (e.g., 'r_winpoint')
+
+                # Remove .jpg from frame_image to get the frame ID
+                frame_id = os.path.splitext(frame_image)[0]
+
+                # Construct the expected path to the target image
+                target_image_path = os.path.join(video_path, str(frame_id), frame_image)
+
+                # get players in frame
+                players = self.__process_players(line)
+                if os.path.exists(target_image_path):
+                    output.append(
+                        {
+                            'video': video_id,
+                            'frame': target_image_path,
+                            'class': frame_activity_class,
+                            'mapped_class': self.frame_mapping[frame_activity_class],
+                            'players': players
+                        }
+                    )
+                else:
+                    print(f"Target image not found: {target_image_path}")
+        return output
