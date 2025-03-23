@@ -1,4 +1,5 @@
 from training.training_utils import TrainingUtilities
+from copy import deepcopy
 
 
 class b1_ModelTrainer:
@@ -14,13 +15,15 @@ class b1_ModelTrainer:
         self.save_folder = save_folder
         self.is_continue = is_continue
         self.checkpoint = checkpoint
+        self.scaler = torch.amp.GradScaler()
 
     # verbose 1 : checkpoint,
     # verbose 3:  labels, preds
     # verbose 4: logits
     def train_model(self, verbose=0):
-        model, optimizer, criterion, epochs, dataloaders = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders
-
+        model, optimizer, criterion, epochs, dataloaders, scaler = self.model, self.optimizer, self.criterion, self.epochs, self.dataloaders, self.scaler
+        best_model = model
+        best_acc = 0.0
         epoch = 0
 
         train_losses = []
@@ -60,16 +63,19 @@ class b1_ModelTrainer:
                         # freeze the non-learnable weights
                         # self.__handle_transfer_learning(phase, training_epoch / epochs)
 
-                        # forward pass
-                        logit = model(inputs)
+                        with torch.amp.autocast('cuda'):
+                            # forward pass
+                            logit = model(inputs)
 
-                        if verbose > 3:
-                            print(f"logit: {logit}")
+                            if verbose > 3:
+                                print(f"logit: {logit}")
 
-                        loss = criterion(logit, labels)
-                        loss.backward()
-                        # update weights
-                        optimizer.step()
+                            loss = criterion(logit, labels)
+
+                        scaler.scale(loss).backward()
+                        optimizer.step(scaler)
+                        scaler.update()
+
                         epoch_loss += loss.item()  # Accumulate loss
 
                     train_losses.append(epoch_loss / len(dataloader))
@@ -81,6 +87,9 @@ class b1_ModelTrainer:
                         continue
                     model.eval()
                     loss, acc = self.__eval_model(dataloader, verbose)
+                    if acc > best_acc:
+                        best_acc = acc
+                        best_model = deepcopy(model)
                     val_losses.append(loss)
                     val_accuracies.append(acc)
                     print(
@@ -88,16 +97,18 @@ class b1_ModelTrainer:
 
             if self.scheduled:
                 optimizer.scheduler_step()
-                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
-                                       optimizer.scheduler_state_dict(), self.save_folder, verbose)
+                if training_epoch % 10 == 0:
+                    TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.optimizer_state_dict(),
+                                           optimizer.scheduler_state_dict(), self.save_folder, verbose)
             else:
-                TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(),self.save_folder, verbose)
+                if training_epoch % 10 == 0:
+                    TrainingUtilities.save_checkpoint(training_epoch, model.state_dict(), optimizer.state_dict(),self.save_folder, verbose)
 
             if training_epoch % 10 == 0:
                 TrainingUtilities.save_model(model, training_epoch, self.save_folder,verbose)
 
-        TrainingUtilities.save_model(model, 'final_', self.save_folder, verbose)
-        return train_losses, val_losses, val_accuracies
+        TrainingUtilities.save_model(best_model, 'final_', self.save_folder, verbose)
+        return train_losses, val_losses, val_accuracies, best_model
 
     def __handle_transfer_learning(self, phase, ratio_epochs, tl_coeff=0, verbose=0):
         if phase == "train":
@@ -129,36 +140,37 @@ class b1_ModelTrainer:
         if verbose > 0:
             dataloader = tqdm(dataloader, desc="Validation")
         with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs = inputs.to(self.DEVICE)
-                labels = labels.to(self.DEVICE)
+            with torch.amp.autocast('cuda'):
+                for inputs, labels in dataloader:
+                    inputs = inputs.to(self.DEVICE)
+                    labels = labels.to(self.DEVICE)
 
-                if verbose > 2:
-                    print(f"labels: {labels}")
+                    if verbose > 2:
+                        print(f"labels: {labels}")
 
-                # Forward pass
-                logits = model(inputs)
+                    # Forward pass
+                    logits = model(inputs)
 
-                if verbose > 3:
-                    print(f"logit: {logits}")
+                    if verbose > 3:
+                        print(f"logit: {logits}")
 
-                probs = F.softmax(logits, dim=1)  # Apply softmax to get probabilities
+                    probs = F.softmax(logits, dim=1)  # Apply softmax to get probabilities
 
-                if verbose > 3:
-                    print(f"probs: {probs}")
+                    if verbose > 3:
+                        print(f"probs: {probs}")
 
-                loss = criterion(logits, labels)
-                val_loss += loss.item()  # Accumulate loss
+                    loss = criterion(logits, labels)
+                    val_loss += loss.item()  # Accumulate loss
 
-                # Compute accuracy
-                predicted = torch.argmax(probs, dim=1)  # Get the class with the highest probability
+                    # Compute accuracy
+                    predicted = torch.argmax(probs, dim=1)  # Get the class with the highest probability
 
-                if verbose > 2:
-                    print(f"predicted: {predicted}")
-                    print(f"true/false: {(predicted == labels)}")
+                    if verbose > 2:
+                        print(f"predicted: {predicted}")
+                        print(f"true/false: {(predicted == labels)}")
 
-                correct_preds += (predicted == labels).sum().item()
-                total_preds += labels.size(0)
+                    correct_preds += (predicted == labels).sum().item()
+                    total_preds += labels.size(0)
 
         # Calculate average loss and accuracy
         avg_loss = val_loss / len(dataloader)

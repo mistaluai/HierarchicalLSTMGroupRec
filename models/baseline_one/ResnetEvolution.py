@@ -5,6 +5,7 @@ import torchvision
 from torchvision.models import ResNet50_Weights
 from tqdm import tqdm
 
+
 class ResnetEvolution(nn.Module):
     def __init__(self, hidden_layers=[]):
         super(ResnetEvolution, self).__init__()
@@ -14,16 +15,16 @@ class ResnetEvolution(nn.Module):
     def __init_backbone(self, backbone):
         num_features = backbone.fc.in_features
 
-        layers = []
-        input_size = num_features  # Start with backbone output size
-        for hidden_size in self.hidden_layers:
-            layers.append(nn.Linear(input_size, hidden_size))
-            layers.append(nn.ReLU())  # Activation function
-            input_size = hidden_size  # Update input for next layer
+        layers = nn.Sequential(
+            nn.Linear(num_features, 4096),
+            nn.BatchNorm1d(4096),
+            nn.Linear(4096, 2048),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(2048, 8)
+        )
 
-        layers.append(nn.Linear(input_size, 8))  # Final output layer
-
-        backbone.fc = nn.Sequential(*layers)  # Output layer for binary classification
+        backbone.fc = layers  # Output layer for binary classification
 
         return backbone
 

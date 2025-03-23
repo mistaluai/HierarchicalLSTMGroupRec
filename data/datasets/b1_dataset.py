@@ -6,8 +6,8 @@ class B1Dataset(Dataset):
         'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
     }
 
-    def __init__(self, csv_file, split='train', transform=None):
-        self.data = pd.read_csv(csv_file)
+    def __init__(self, data, split='train', transform=None):
+        self.data = data
         if transform is None:
             self.transform = transforms.Compose([
                 transforms.Resize((256, 256)),
@@ -19,21 +19,23 @@ class B1Dataset(Dataset):
             self.transform = transform
 
         if split in self.VIDEO_SPLITS:
-            self.data = self.data[self.data['video_names'].astype(int).isin(self.VIDEO_SPLITS[split])]
+            self.data = self.data[self.data['video'].astype(int).isin(self.VIDEO_SPLITS[split])].reset_index(drop=True)
         else:
             raise NameError(f'There is no such split: {split}, only {self.VIDEO_SPLITS}')
+
+    def get_labels(self):
+        return self.data['mapped_class'].tolist()
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = self.data.iloc[idx]['img_path']
-        label = self.data.iloc[idx]['Mapped_Label']
+        img_path = self.data.iloc[idx]['frame']
+        label = self.data.iloc[idx]['mapped_class']
 
         # Load image
         image = Image.open(img_path).convert("RGB")
 
         # Apply transformations if provided
-        if self.transform:
-            image = self.transform(image)
+        image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
