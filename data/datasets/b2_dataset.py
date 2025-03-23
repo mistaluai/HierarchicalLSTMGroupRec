@@ -14,13 +14,14 @@ from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 
 
 class B3Dataset(Dataset):
-    VIDEO_SPLITS = {
-        'train': {1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54},
-        'val': {0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51},
-        'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
-    }
 
-    def __init__(self, data, split='train', transform=None, player_transform=None, visualize=False):
+    def __init__(self, dataset, split='train', transform=None, player_transform=None, visualize=False):
+
+        VIDEO_SPLITS = {
+            'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
+            'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
+            'test': [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
+        }
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
@@ -33,8 +34,17 @@ class B3Dataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+        self.data = []
+        self.labels = []
+        list_split = VIDEO_SPLITS[split]
+        for entity in dataset:
+            video_id = entity['video']
+            if video_id in list_split:
+                self.data.append(entity)
+                self.labels.append(entity['mapped_class'])
 
-        self.data = data
+    def get_labels(self):
+        return self.labels
 
     def __len__(self):
         return len(self.data)
