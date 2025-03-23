@@ -24,14 +24,12 @@ class B2Dataset(Dataset):
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.player_transform = player_transform or transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
@@ -50,8 +48,6 @@ class B2Dataset(Dataset):
         frame = Image.open(item['frame']).convert("RGB")
         frame_class = item['mapped_class']
 
-        if self.transform:
-            frame = self.transform(frame)
 
         # Load and transform player bounding boxes
         player_images = []
@@ -61,10 +57,11 @@ class B2Dataset(Dataset):
             x2 = x1 + w
             y2 = y1 + h
             player_image = frame.crop((x1, y1, x2, y2))
-            if self.player_transform:
-                player_image = self.player_transform(player_image)
+            player_image = self.player_transform(player_image)
             player_images.append(player_image)
             player_labels.append(player_label)
+
+        frame = self.transform(frame)
 
         return frame, frame_class, player_images, player_labels
 
@@ -139,20 +136,4 @@ class PlayerDataset(Dataset):
         cropped_image = self.transform(cropped_image)
 
         return cropped_image, torch.tensor(action_class, dtype=torch.long)
-### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
-def custom_collate_fn(batch):
-    """
-    Custom collate function for batching frames with a variable number of detected players.
-
-    Args:
-        batch: List of tuples [(tensor of player crops, label), ...]
-
-    Returns:
-        images_list: List of lists of player images (each batch has variable-length lists)
-        labels: Tensor of shape (batch_size,)
-    """
-    images_list = [sample[0] for sample in batch]  # List of cropped player tensors
-    labels = torch.tensor([sample[1] for sample in batch], dtype=torch.long)
-
-    return images_list, labels
 
