@@ -1,6 +1,3 @@
-import torch
-import torch.nn as nn
-
 class ResnetEvolution(nn.Module):
     def __init__(self, feature_extractor_path):
         """
@@ -9,40 +6,28 @@ class ResnetEvolution(nn.Module):
         """
         super(ResnetEvolution, self).__init__()
 
-
         self.feature_extractor = self.__load_resnet_feature_extractor(feature_extractor_path)
 
         self.group_fc = nn.Sequential(
-            nn.Linear(2048, 512),
-            nn.ReLU(),
-            nn.Linear(512, 9)
+            nn.Linear(2048, 8)
         )
 
+    def forward(self, x):
+        batch_size, players, c, h, w = x.size()
 
-    def forward(self, players):
-        """
-        Args:
-            players: torch.Size([batch_size, num_players, 3, 224, 224])
-        Returns:
-            group_activity_logits: torch.Size([batch_size, 9])
-        """
-        batch_size, num_players, C, H, W = players.shape
-        players = players.view(batch_size * num_players, C, H, W)
-        with torch.no_grad():
-            player_features = self.feature_extractor(players)
-        player_features = player_features.view(batch_size, num_players, -1)
-        pooled_features = torch.max(player_features, dim=1)[0]
-        group_activity_logits = self.group_fc(pooled_features)
+        input = x.view(batch_size * players, c, h, w)
+        features = self.feature_extractor(input)
+        features = features.view(batch_size, players, -1)
+        max_pooled = torch.max(features, dim=1)[0]
+        logits = self.group_fc(max_pooled)
 
-        return group_activity_logits
-
+        return logits
 
     def __load_resnet_feature_extractor(self, state_dict_path):
-
-        state_dict = torch.load(state_dict_path)
+        state_dict = torch.load(state_dict_path, weights_only=True)
         model = FinetunableResnet()
         model.load_state_dict(state_dict, strict=False)  # strict=False in case extra keys exist
 
-        feature_extractor = nn.Sequential(*(list(model.children())[:-1]))
+        feature_extractor = nn.Sequential(*(list(model.model.children())[:-1]))
 
         return feature_extractor
