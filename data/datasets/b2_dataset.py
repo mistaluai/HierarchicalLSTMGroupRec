@@ -57,12 +57,18 @@ class B3Dataset(Dataset):
             player_images.append(player_image)
             player_labels.append(player_label)
 
+        if len(player_images) < 12:
+            diff = 12 - len(player_images)
+            empty = [torch.zeros_like(player_images[0]) for _ in range(diff)]
+            empty_labels = [0] * diff
+            player_labels.extend(empty_labels)
+            player_images.extend(empty)
+
         #convert to tensors
         player_images = torch.stack(player_images)
         player_labels = torch.tensor(player_labels, dtype=torch.long)
 
         frame = self.transform(frame)
-
         return frame, frame_class, player_images, player_labels
 
 
