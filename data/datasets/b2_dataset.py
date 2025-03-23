@@ -13,7 +13,7 @@ from PIL import Image
 from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 
 
-class B2Dataset(Dataset):
+class B3Dataset(Dataset):
     VIDEO_SPLITS = {
         'train': {1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54},
         'val': {0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51},
@@ -37,13 +37,9 @@ class B2Dataset(Dataset):
         self.data = data
 
     def __len__(self):
-        return {
-            'frames': len(self.data),
-            'players': sum([len(boxes) for boxes in self.data['players']])
-        }
+        return len(self.data)
 
     def __getitem__(self, idx):
-        """Extracts player-level features, applies pooling, and returns the frame-level representation."""
         item = self.data[idx]
         frame = Image.open(item['frame']).convert("RGB")
         frame_class = item['mapped_class']
@@ -60,6 +56,10 @@ class B2Dataset(Dataset):
             player_image = self.player_transform(player_image)
             player_images.append(player_image)
             player_labels.append(player_label)
+
+        #convert to tensors
+        player_images = torch.stack(player_images)
+        player_labels = torch.tensor(player_labels, dtype=torch.long)
 
         frame = self.transform(frame)
 
