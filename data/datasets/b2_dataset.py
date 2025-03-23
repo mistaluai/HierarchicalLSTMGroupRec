@@ -13,45 +13,47 @@ from PIL import Image
 from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 
 
-class B2Dataset(Dataset):
-    VIDEO_SPLITS = {
-        'train': {1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54},
-        'val': {0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51},
-        'test': {4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47}
-    }
+class B3Dataset(Dataset):
 
-    def __init__(self, data, split='train', transform=None, player_transform=None, visualize=False):
+    def __init__(self, dataset, split='train', transform=None, player_transform=None, visualize=False):
+
+        VIDEO_SPLITS = {
+            'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
+            'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
+            'test': [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
+        }
 
         # Define default image transformations
         self.transform = transform or transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.player_transform = player_transform or transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+        self.data = []
+        self.labels = []
+        list_split = VIDEO_SPLITS[split]
+        for entity in dataset:
+            video_id = entity['video']
+            if video_id in list_split:
+                self.data.append(entity)
+                self.labels.append(entity['mapped_class'])
 
-        self.data = data
+    def get_labels(self):
+        return self.labels
 
     def __len__(self):
-        return {
-            'frames': len(self.data),
-            'players': sum([len(boxes) for boxes in self.data['players']])
-        }
+        return len(self.data)
 
     def __getitem__(self, idx):
-        """Extracts player-level features, applies pooling, and returns the frame-level representation."""
         item = self.data[idx]
         frame = Image.open(item['frame']).convert("RGB")
         frame_class = item['mapped_class']
 
-        if self.transform:
-            frame = self.transform(frame)
 
         # Load and transform player bounding boxes
         player_images = []
@@ -61,11 +63,22 @@ class B2Dataset(Dataset):
             x2 = x1 + w
             y2 = y1 + h
             player_image = frame.crop((x1, y1, x2, y2))
-            if self.player_transform:
-                player_image = self.player_transform(player_image)
+            player_image = self.player_transform(player_image)
             player_images.append(player_image)
             player_labels.append(player_label)
 
+        if len(player_images) < 12:
+            diff = 12 - len(player_images)
+            empty = [torch.zeros_like(player_images[0]) for _ in range(diff)]
+            empty_labels = [0] * diff
+            player_labels.extend(empty_labels)
+            player_images.extend(empty)
+
+        #convert to tensors
+        player_images = torch.stack(player_images)
+        player_labels = torch.tensor(player_labels, dtype=torch.long)
+
+        frame = self.transform(frame)
         return frame, frame_class, player_images, player_labels
 
 
@@ -136,24 +149,7 @@ class PlayerDataset(Dataset):
 
         cropped_image = image.crop(bbox)  # (x1, y1, x2, y2)
 
-        if self.transform:
-            cropped_image = self.transform(cropped_image)
+        cropped_image = self.transform(cropped_image)
 
         return cropped_image, torch.tensor(action_class, dtype=torch.long)
-### Custom Collate Function to Handle Variable Player Counts Need to be transfered to the utils files
-def custom_collate_fn(batch):
-    """
-    Custom collate function for batching frames with a variable number of detected players.
-
-    Args:
-        batch: List of tuples [(tensor of player crops, label), ...]
-
-    Returns:
-        images_list: List of lists of player images (each batch has variable-length lists)
-        labels: Tensor of shape (batch_size,)
-    """
-    images_list = [sample[0] for sample in batch]  # List of cropped player tensors
-    labels = torch.tensor([sample[1] for sample in batch], dtype=torch.long)
-
-    return images_list, labels
 

@@ -3,7 +3,7 @@ import torch.optim as optim
 
 class AdamWScheduled():
     def __init__(self, model_params, lr, step_size, gamma):
-        self.optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model_params),  lr=lr)
+        self.optimizer = optim.AdamW(model_params,  lr=lr)
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size, gamma)
 
     def step(self, scaler):
