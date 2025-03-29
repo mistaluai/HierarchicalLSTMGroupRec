@@ -14,7 +14,7 @@ from data.datasets.b2_dataprocessor import DataProcessorBaselineTwo
 
 
 class B3Dataset(Dataset):
-
+    
     def __init__(self, dataset, split='train', transform=None, player_transform=None, visualize=False):
 
         VIDEO_SPLITS = {
