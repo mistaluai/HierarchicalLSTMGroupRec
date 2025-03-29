@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import os
 import pickle
 import pandas as pd
@@ -8,7 +7,7 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 
 class B4Dataset(Dataset):
-    def __init__(self, annotation_path, videos_root,split='train', transform=None, visualize=False):
+    def __init__(self, annotations_dataframe,split='train', transform=None, visualize=False):
         VIDEO_SPLITS = {
             'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
             'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
@@ -20,7 +19,7 @@ class B4Dataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        self.data = DataProcessorBaselineFour(annotation_path,videos_root).get_data()
+        self.data = annotations_dataframe
         self.visualize = visualize
         list_split = VIDEO_SPLITS[split]
         
