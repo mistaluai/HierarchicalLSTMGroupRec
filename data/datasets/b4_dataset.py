@@ -5,6 +5,9 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.models as models
+from PIL import Image
+from torch.utils.data import Dataset
+
 
 class B4Dataset(Dataset):
     def __init__(self, annotations_dataframe,split='train', transform=None, visualize=False):
@@ -27,7 +30,7 @@ class B4Dataset(Dataset):
 
 
     def __len__(self):
-        self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
+        return self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
         
     def get_labels(self):
         return self.data['clip_id','clip_category'].drop_duplicates().shape[0]
