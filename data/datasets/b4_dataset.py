@@ -30,7 +30,7 @@ class B4Dataset(Dataset):
         self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
         
     def get_labels(self):
-        return self.data['mapped_class'].tolist()
+        return self.data['clip_id','clip_category'].drop_duplicates().shape[0]
     
     def __getitem__(self, idx):
         
@@ -43,5 +43,5 @@ class B4Dataset(Dataset):
 
 
         images = [self.transform(Image.open(fp).convert('RGB')) for fp in frame_paths]
-        return torch.stack(images), current_row['clip_category']
+        return torch.stack(images,dtype =torch.long), current_row['clip_category']
   
