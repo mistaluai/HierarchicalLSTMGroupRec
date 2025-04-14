@@ -15,8 +15,8 @@ class B4Dataset(Dataset):
             'train': [1, 3, 6, 7, 10, 13, 15, 16, 18, 22, 23, 31, 32, 36, 38, 39, 40, 41, 42, 48, 50, 52, 53, 54],
             'val': [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51],
             'test': [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
-        } 
-            # Define default image transformations
+        }
+        # Define default image transformations
         self.transform = transform or transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
@@ -25,15 +25,17 @@ class B4Dataset(Dataset):
         self.data = annotations_dataframe
         self.visualize = visualize
         list_split = VIDEO_SPLITS[split]
+        annotations_dataframe['video_id'] = annotations_dataframe['video_id'].astype(int)
+        self.data = annotations_dataframe[annotations_dataframe['video_id'].isin(list_split)].copy()
 
         self.data = self.data.sort_values(by=['video_id', 'clip_id', 'frame_path']).reset_index(drop=True)
 
     def __len__(self):
         return self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
-        
+
     def get_labels(self):
-        return self.data['clip_id','clip_category'].drop_duplicates().shape[0]
-    
+        return self.data['clip_category']
+
     def __getitem__(self, idx):
         current_row = self.data.iloc[idx]
         video_id, clip_id = current_row['video_id'], current_row['clip_id']
@@ -43,5 +45,4 @@ class B4Dataset(Dataset):
                                 (self.data['clip_id'] == clip_id)]['frame_path'].tolist()
 
         images = [self.transform(Image.open(fp).convert('RGB')) for fp in frame_paths]
-        return torch.stack(images,dtype =torch.long), current_row['clip_category']
-  
+        return torch.stack(images, dtype=torch.long), current_row['clip_category']
