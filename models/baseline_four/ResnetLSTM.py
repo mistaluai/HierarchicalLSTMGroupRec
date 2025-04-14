@@ -6,6 +6,27 @@ from torchvision.models import ResNet50_Weights
 from tqdm import tqdm
 import torchvision.models as models
 
+class FinetunableResnet(nn.Module):
+    def __init__(self):
+        super(FinetunableResnet, self).__init__()
+        self.model = self.__get_model()
+
+    def __get_model(self):
+        resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        num_features = resnet.fc.in_features
+        layers = nn.Sequential(
+            nn.Linear(num_features, 8)
+        )
+        resnet.fc = layers
+
+        return resnet
+
+    def get_fc(self):
+        return self.model.fc
+
+    def forward(self, images):
+        return self.model(images)
+
 class ResnetEvolution(nn.Module):
     def __init__(self, input_size=2048, lstm_hidden_size=512, num_frames=9, num_classes=8, model_state_dict=None, backbone=models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2, progress=False)):
         super(ResnetEvolution, self).__init__()
@@ -26,6 +47,7 @@ class ResnetEvolution(nn.Module):
 
     def __init_backbone(self, backbone, model_state_dict):
         if model_state_dict is not None:
+            backbone = FinetunableResnet()
             backbone.load_state_dict(model_state_dict)
             backbone = nn.Sequential(*list(backbone.model.children())[:-1])
 
