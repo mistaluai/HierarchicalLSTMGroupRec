@@ -45,4 +45,4 @@ class B4Dataset(Dataset):
                                 (self.data['clip_id'] == clip_id)]['frame_path'].tolist()
 
         images = [self.transform(Image.open(fp).convert('RGB')) for fp in frame_paths]
-        return torch.stack(images, dtype=torch.long), current_row['clip_category']
+        return torch.stack(images), torch.tensor(current_row['clip_category'], dtype=torch.long)
