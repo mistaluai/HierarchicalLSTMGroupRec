@@ -29,7 +29,7 @@ class B4Dataset(Dataset):
         self.data = self.data.sort_values(by=['video_id', 'clip_id', 'frame_path']).reset_index(drop=True)
 
     def __len__(self):
-        self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
+        return self.data[['video_id', 'clip_id']].drop_duplicates().shape[0]
         
     def get_labels(self):
         return self.data['clip_id','clip_category'].drop_duplicates().shape[0]
